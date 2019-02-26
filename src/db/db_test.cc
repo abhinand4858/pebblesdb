@@ -2234,7 +2234,9 @@ uint64_t micros() {
 }
 
 void print_timer_info(std::string msg, uint64_t a, uint64_t b) {
-	uint64_t diff = abs(a-b);
+	uint64_t diff;
+  if (a > b) diff = a - b;
+  else diff = b - a;
 	printf("%s: %lu micros (%f ms)\n", msg.c_str(), diff, diff/1000.0);
 }
 
