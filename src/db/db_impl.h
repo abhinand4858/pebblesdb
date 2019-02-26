@@ -203,6 +203,9 @@ class DBImpl : public DB {
   SHARED_PTR<log::Writer> log_;
   uint32_t seed_;                // For sampling.
 
+  //mutex to protect RemoveFileLevelBloomFilterInfo
+  port::Mutex filterinfo_mutex_;
+
   // Synchronize writers
   port::Mutex writers_mutex_;
   uint64_t writers_upper_;

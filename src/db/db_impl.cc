@@ -202,6 +202,7 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
       logfile_number_(0),
       log_(),
       seed_(0),
+      filterinfo_mutex_(),
       writers_mutex_(),
       writers_upper_(0),
       writers_tail_(NULL),
@@ -253,6 +254,8 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
   mutex_.Unlock();
   writers_mutex_.Lock();
   writers_mutex_.Unlock();
+  filterinfo_mutex_.Lock();
+  filterinfo_mutex_.Unlock();
 }
 
 DBImpl::~DBImpl() {
@@ -412,7 +415,9 @@ void DBImpl::DeleteObsoleteFiles() {
         if (type == kTableFile) {
           table_cache_->Evict(number);
           // Remove all the in memory maps used.
+          filterinfo_mutex_.Lock();
           versions_->RemoveFileLevelBloomFilterInfo(number);
+          filterinfo_mutex_.Unlock();
           versions_->RemoveFileMetaDataFromTableCache(number);
         }
         Log(options_.info_log, "Delete type=%d #%lld\n",
