@@ -139,6 +139,7 @@ target_sources(pebblesdb
         "${PROJECT_SOURCE_DIR}/util/logging.cc"
         "${PROJECT_SOURCE_DIR}/util/options.cc"
         "${PROJECT_SOURCE_DIR}/util/status.cc"
+        "${PROJECT_SOURCE_DIR}/util/surf.cc"
         "${PROJECT_SOURCE_DIR}/port/port_posix.cc"
         )
 
@@ -242,3 +243,6 @@ list (SORT _variableNames)
 foreach (_variableName ${_variableNames})
     message(STATUS "${_variableName}=${${_variableName}}")
 endforeach()
+
+# SuRF Test
+add_subdirectory(src/filter_experiment)
