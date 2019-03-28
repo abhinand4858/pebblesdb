@@ -22,57 +22,11 @@
 #include "pebblesdb/table.h"
 
 
-static std::atomic<uint64_t> read_count;
-
 void close(leveldb::DB* db, leveldb::Options* level_options) {
     delete db;
     delete level_options->filter_policy;
 }
 
-void benchPointQuery(leveldb::DB* db, uint64_t key_count, uint64_t key_gap, uint64_t query_count) {
-    std::mt19937_64 e(1);
-    std::uniform_int_distribution<unsigned long long> dist(0, (key_count * key_gap));
-
-    std::vector<uint64_t> query_keys;
-
-    for (uint64_t i = 0; i < query_count; i++) {
-	uint64_t r = dist(e);
-	query_keys.push_back(r);
-    }
-
-    struct timespec ts_start;
-    struct timespec ts_end;
-    uint64_t elapsed;
-
-    printf("point query\n");
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
-
-    for (uint64_t i = 0; i < query_count; i++) {
-        uint64_t key = query_keys[i];
-        key = htobe64(key);
-
-        leveldb::Slice s_key(reinterpret_cast<const char*>(&key), sizeof(key));
-        std::string s_value;
-        uint64_t value;
-
-        leveldb::Status status = db->Get(leveldb::ReadOptions(), s_key, &s_value);
-        
-        if (status.ok()) {
-            assert(s_value.size() >= sizeof(uint64_t));
-            value = *reinterpret_cast<const uint64_t*>(s_value.data());
-            (void)value;
-        }
-    }
-
-    clock_gettime(CLOCK_MONOTONIC, &ts_end);
-    elapsed = static_cast<uint64_t>(ts_end.tv_sec) * 1000000000UL +
-	static_cast<uint64_t>(ts_end.tv_nsec) -
-	static_cast<uint64_t>(ts_start.tv_sec) * 1000000000UL +
-	static_cast<uint64_t>(ts_start.tv_nsec);
-
-    std::cout << "elapsed:    " << (static_cast<double>(elapsed) / 1000000000.) << "\n";
-    std::cout << "throughput: " << (static_cast<double>(query_count) / (static_cast<double>(elapsed) / 1000000000.)) << "\n";
-}
 
 void warmup(leveldb::DB* db, uint64_t key_count, uint64_t key_gap, uint64_t query_count) {
     struct timespec ts_start;
@@ -145,7 +99,7 @@ void benchPointQuery(leveldb::DB* db, leveldb::Options* options,
 	    value = *reinterpret_cast<const uint64_t*>(s_value.data());
 	    (void)value;
 	}
-    }
+}
     
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
     elapsed = static_cast<uint64_t>(ts_end.tv_sec) * 1000000000UL +
@@ -158,119 +112,119 @@ void benchPointQuery(leveldb::DB* db, leveldb::Options* options,
 
 }
 
-void benchOpenRangeQuery(leveldb::DB* db, leveldb::Options* options, uint64_t key_range,
-			 uint64_t query_count, uint64_t scan_length) {
-    //std::random_device rd;
-    //std::mt19937_64 e(rd());
-    std::mt19937_64 e(2017);
-    std::uniform_int_distribution<unsigned long long> dist(0, key_range);
+// void benchOpenRangeQuery(leveldb::DB* db, leveldb::Options* options, uint64_t key_range,
+// 			 uint64_t query_count, uint64_t scan_length) {
+//     //std::random_device rd;
+//     //std::mt19937_64 e(rd());
+//     std::mt19937_64 e(2017);
+//     std::uniform_int_distribution<unsigned long long> dist(0, key_range);
 
-    std::vector<uint64_t> query_keys;
+//     std::vector<uint64_t> query_keys;
 
-    for (uint64_t i = 0; i < query_count; i++) {
-        uint64_t r = dist(e);
-        query_keys.push_back(r);
-    }
+//     for (uint64_t i = 0; i < query_count; i++) {
+//         uint64_t r = dist(e);
+//         query_keys.push_back(r);
+//     }
 
-    struct timespec ts_start;
-    struct timespec ts_end;
-    uint64_t elapsed;
+//     struct timespec ts_start;
+//     struct timespec ts_end;
+//     uint64_t elapsed;
 
-    printf("open range query\n");
-    leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
+//     printf("open range query\n");
+//     leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
 
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+//     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
-    for (uint64_t i = 0; i < query_count; i++) {
-        uint64_t key = query_keys[i];
-        key = htobe64(key);
-        leveldb::Slice s_key(reinterpret_cast<const char*>(&key), sizeof(key));
+//     for (uint64_t i = 0; i < query_count; i++) {
+//         uint64_t key = query_keys[i];
+//         key = htobe64(key);
+//         leveldb::Slice s_key(reinterpret_cast<const char*>(&key), sizeof(key));
         
-        std::string s_value;
-        uint64_t value;
+//         std::string s_value;
+//         uint64_t value;
 
-        uint64_t j = 0;
-        for (it->Seek(s_key); it->Valid() && j < scan_length; it->Next(), j++) {
-            uint64_t found_key = *reinterpret_cast<const uint64_t*>(it->key().data());
-            assert(it->value().size() >= sizeof(uint64_t));
-            value = *reinterpret_cast<const uint64_t*>(it->value().data());
-            (void)value;
-            break;
-        }
-    }
+//         uint64_t j = 0;
+//         for (it->Seek(s_key); it->Valid() && j < scan_length; it->Next(), j++) {
+//             uint64_t found_key = *reinterpret_cast<const uint64_t*>(it->key().data());
+//             assert(it->value().size() >= sizeof(uint64_t));
+//             value = *reinterpret_cast<const uint64_t*>(it->value().data());
+//             (void)value;
+//             break;
+//         }
+//     }
     
-    clock_gettime(CLOCK_MONOTONIC, &ts_end);
-    elapsed = static_cast<uint64_t>(ts_end.tv_sec) * 1000000000UL +
-	static_cast<uint64_t>(ts_end.tv_nsec) -
-	static_cast<uint64_t>(ts_start.tv_sec) * 1000000000UL +
-	static_cast<uint64_t>(ts_start.tv_nsec);
+//     clock_gettime(CLOCK_MONOTONIC, &ts_end);
+//     elapsed = static_cast<uint64_t>(ts_end.tv_sec) * 1000000000UL +
+// 	static_cast<uint64_t>(ts_end.tv_nsec) -
+// 	static_cast<uint64_t>(ts_start.tv_sec) * 1000000000UL +
+// 	static_cast<uint64_t>(ts_start.tv_nsec);
 
-    std::cout << "elapsed:    " << (static_cast<double>(elapsed) / 1000000000.) << "\n";
-    std::cout << "throughput: " << (static_cast<double>(query_count) / (static_cast<double>(elapsed) / 1000000000.)) << "\n";
+//     std::cout << "elapsed:    " << (static_cast<double>(elapsed) / 1000000000.) << "\n";
+//     std::cout << "throughput: " << (static_cast<double>(query_count) / (static_cast<double>(elapsed) / 1000000000.)) << "\n";
 
 
-    delete it;
-}
+//     delete it;
+// }
 
-void benchClosedRangeQuery(leveldb::DB* db, leveldb::Options* options, uint64_t key_range,
-			   uint64_t query_count, uint64_t range_size) {
-    //std::random_device rd;
-    //std::mt19937_64 e(rd());
-    std::mt19937_64 e(2017);
-    std::uniform_int_distribution<unsigned long long> dist(0, key_range);
+// void benchClosedRangeQuery(leveldb::DB* db, leveldb::Options* options, uint64_t key_range,
+// 			   uint64_t query_count, uint64_t range_size) {
+//     //std::random_device rd;
+//     //std::mt19937_64 e(rd());
+//     std::mt19937_64 e(2017);
+//     std::uniform_int_distribution<unsigned long long> dist(0, key_range);
 
-    std::vector<uint64_t> query_keys;
+//     std::vector<uint64_t> query_keys;
 
-    for (uint64_t i = 0; i < query_count; i++) {
-	uint64_t r = dist(e);
-	query_keys.push_back(r);
-    }
+//     for (uint64_t i = 0; i < query_count; i++) {
+// 	uint64_t r = dist(e);
+// 	query_keys.push_back(r);
+//     }
 
-    struct timespec ts_start;
-    struct timespec ts_end;
-    uint64_t elapsed;
+//     struct timespec ts_start;
+//     struct timespec ts_end;
+//     uint64_t elapsed;
 
-    printf("closed range query\n");
+//     printf("closed range query\n");
 
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+//     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
-    for (uint64_t i = 0; i < query_count; i++) {
-	uint64_t key = query_keys[i];
-	uint64_t upper_key = key + range_size;
-	key = htobe64(key);
-	leveldb::Slice s_key(reinterpret_cast<const char*>(&key), sizeof(key));
-	upper_key = htobe64(upper_key);
-	leveldb::Slice s_upper_key(reinterpret_cast<const char*>(&upper_key), sizeof(upper_key));
+//     for (uint64_t i = 0; i < query_count; i++) {
+// 	uint64_t key = query_keys[i];
+// 	uint64_t upper_key = key + range_size;
+// 	key = htobe64(key);
+// 	leveldb::Slice s_key(reinterpret_cast<const char*>(&key), sizeof(key));
+// 	upper_key = htobe64(upper_key);
+// 	leveldb::Slice s_upper_key(reinterpret_cast<const char*>(&upper_key), sizeof(upper_key));
 	
-	std::string s_value;
-	uint64_t value;
+// 	std::string s_value;
+// 	uint64_t value;
 
-	leveldb::ReadOptions read_options = leveldb::ReadOptions();
-	//read_options.iterate_upper_bound = &s_upper_key;  NEED TO UPDATE THE UPPER BOUND HERE!!!!!
-	leveldb::Iterator* it = db->NewIterator(read_options);
+// 	leveldb::ReadOptions read_options = leveldb::ReadOptions();
+// 	//read_options.iterate_upper_bound = &s_upper_key;  NEED TO UPDATE THE UPPER BOUND HERE!!!!!
+// 	leveldb::Iterator* it = db->NewIterator(read_options);
 
-	uint64_t j = 0;
-	for (it->Seek(s_key); it->Valid(); it->Next(), j++) {
-	    uint64_t found_key = *reinterpret_cast<const uint64_t*>(it->key().data());
-	    assert(it->value().size() >= sizeof(uint64_t));
-	    value = *reinterpret_cast<const uint64_t*>(it->value().data());
-	    (void)value;
-	    break;
-	}
+// 	uint64_t j = 0;
+// 	for (it->Seek(s_key); it->Valid(); it->Next(), j++) {
+// 	    uint64_t found_key = *reinterpret_cast<const uint64_t*>(it->key().data());
+// 	    assert(it->value().size() >= sizeof(uint64_t));
+// 	    value = *reinterpret_cast<const uint64_t*>(it->value().data());
+// 	    (void)value;
+// 	    break;
+// 	}
 	
-	delete it;
-    }
+// 	delete it;
+//     }
     
-    clock_gettime(CLOCK_MONOTONIC, &ts_end);
-    elapsed = static_cast<uint64_t>(ts_end.tv_sec) * 1000000000UL +
-	static_cast<uint64_t>(ts_end.tv_nsec) -
-	static_cast<uint64_t>(ts_start.tv_sec) * 1000000000UL +
-	static_cast<uint64_t>(ts_start.tv_nsec);
+//     clock_gettime(CLOCK_MONOTONIC, &ts_end);
+//     elapsed = static_cast<uint64_t>(ts_end.tv_sec) * 1000000000UL +
+// 	static_cast<uint64_t>(ts_end.tv_nsec) -
+// 	static_cast<uint64_t>(ts_start.tv_sec) * 1000000000UL +
+// 	static_cast<uint64_t>(ts_start.tv_nsec);
 
-    //std::cout << "elapsed:    " << (static_cast<double>(elapsed) / 1000000000.) << "\n";
-    std::cout << "throughput: " << (static_cast<double>(query_count) / (static_cast<double>(elapsed) / 1000000000.)) << "\n";
+//     //std::cout << "elapsed:    " << (static_cast<double>(elapsed) / 1000000000.) << "\n";
+//     std::cout << "throughput: " << (static_cast<double>(query_count) / (static_cast<double>(elapsed) / 1000000000.)) << "\n";
 
-}
+// }
 
 void init(const std::string& db_path, leveldb::DB** db, leveldb::Options* options,
 	  uint64_t key_count, uint64_t value_size) {
@@ -381,12 +335,12 @@ void printIO() {
 
 int main(int argc, const char* argv[]) {
     if (argc < 3) {
-	std::cout << "Usage:\n";
-	std::cout << "arg 1: path to datafiles\n";
-	std::cout << "arg 2: filter type\n";
-	std::cout << "\t0: Bloom filter\n";
-	std::cout << "\t1: SuRF\n";
-	return -1;
+        std::cout << "Usage:\n";
+        std::cout << "arg 1: path to datafiles\n";
+        std::cout << "arg 2: filter type\n";
+        std::cout << "\t0: Bloom filter\n";
+        std::cout << "\t1: SuRF\n";
+        return -1;
     }
 
     std::string db_path = std::string(argv[1]); 
@@ -396,14 +350,11 @@ int main(int argc, const char* argv[]) {
 
     const std::string kKeyPath = "poisson_timestamps.csv";
   
-
-
-
     // kWarmupSampleGap = kKeyCount / warmup_query_count;
     //const uint64_t kQueryCount = 50000;
 
     //const uint64_t kKeyCount = 100000000;
-    const uint64_t kKeyCount = 2000000;
+    const uint64_t kKeyCount = 2000000; //2x10^6
     const uint64_t kValueSize = 1000;
     const uint64_t kKeyGap = 100000;
 
@@ -421,21 +372,21 @@ int main(int argc, const char* argv[]) {
 	    options.filter_policy = leveldb::NewSuRFPolicy(0, 0, true, 16);
 
     if (options.filter_policy == nullptr)
-	std::cout << "Filter DISABLED\n";
+	    std::cout << "Filter DISABLED\n";
     else
-	std::cout << "Using " << options.filter_policy->Name() << "\n";
+	    std::cout << "Using " << options.filter_policy->Name() << "\n";
     
     init(db_path, &db, &options, kKeyCount, kValueSize);
 
     //=========================================================================
     
-    uint64_t current_read_count = read_count;
+    //uint64_t current_read_count = read_count;
 
     //std::cout << options.statistics->ToString() << "\n";
 
     printIO();
     warmup(db, kKeyCount, kKeyGap, kWarmupQueryCount);
-    std::cout << "read_count = " << (static_cast<double>(read_count - current_read_count) / kWarmupQueryCount) << " per op\n\n";
+    //std::cout << "read_count = " << (static_cast<double>(read_count - current_read_count) / kWarmupQueryCount) << " per op\n\n";
 
     printIO();
     benchPointQuery(db, kKeyCount, kKeyGap, kQueryCount);
@@ -443,7 +394,7 @@ int main(int argc, const char* argv[]) {
     //benchClosedRangeQuery(db, kKeyCount, kKeyGap, kQueryCount, range_size);
     printIO();
 
-    std::cout << "read_count = " << (static_cast<double>(read_count - current_read_count) / kWarmupQueryCount) << " per op\n\n";
+    //std::cout << "read_count = " << (static_cast<double>(read_count - current_read_count) / kWarmupQueryCount) << " per op\n\n";
 
     //printFreeMem();
 
