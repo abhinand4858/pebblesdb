@@ -6,7 +6,7 @@ GAP = 200000000
 NUM_SENSOR = 2000
 NUM_EVENT_PER_SENSOR = 50000
 
-OUTFILE_PATH = "poisson_timestamps.csv"
+OUTFILE_PATH = "poisson_timestamps.csv" #10^8 keys
 
 f_out = open(OUTFILE_PATH, 'w')
 
