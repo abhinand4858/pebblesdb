@@ -96,7 +96,7 @@ void init(const std::string& key_path, const std::string& db_path, leveldb::DB**
             key = keys[i];
             key = htobe64(key);
             leveldb::Slice s_key(reinterpret_cast<const char*>(&key), sizeof(key));
-            setValueBuffer(value_buf, value_size, e, dist);
+            setValueBuffer(value_buf, value_size, e, dist); 
             leveldb::Slice s_value(value_buf, value_size);
 
             status = (*db)->Put(leveldb::WriteOptions(), s_key, s_value);
@@ -108,10 +108,6 @@ void init(const std::string& key_path, const std::string& db_path, leveldb::DB**
             if (i % (key_count / 100) == 0)
                 std::cout << i << "/" << key_count << " [" << ((i + 0.0)/(key_count + 0.0) * 100.) << "]\n";
         }
-
-        //std::cout << "compacting\n";
-        //leveldb::CompactRangeOptions compact_range_options;
-        //(*db)->CompactRange(compact_range_options, NULL, NULL);
     }
 }
 
@@ -119,6 +115,7 @@ void init(const std::string& key_path, const std::string& db_path, leveldb::DB**
 void close(leveldb::DB* db, leveldb::Options* level_options) {
     delete db;
     delete level_options->filter_policy;
+    delete level_options->block_cache;
 }
 
 
@@ -214,15 +211,34 @@ void testScan(const std::string& key_path, leveldb::DB* db, uint64_t key_count) 
 
 void benchPointQuery(leveldb::DB* db, leveldb::Options* options,
 		     uint64_t key_range, uint64_t query_count) {
-    std::mt19937_64 e(2019);
-    std::uniform_int_distribution<unsigned long long> dist(0, key_range);
-
+    //std::mt19937_64 e(2017);
+    //std::uniform_int_distribution<unsigned long long> dist(0, key_range);
+     
+    std::ifstream keyFile("/home/bx1/trash/test/pebblesdb/src/filter_experiment/poisson_timestamps.csv");
     std::vector<uint64_t> query_keys;
+    uint64_t key = 0;
 
-    for (uint64_t i = 0; i < query_count; i++) {
-        uint64_t r = dist(e);
-        query_keys.push_back(r);
+    uint64_t key_gap = 100;
+
+    for (uint64_t i = 0; i < key_range; i++) {
+        keyFile >> key;
+        if (i % key_gap == 0)
+            query_keys.push_back(key);
     }
+    
+    // for (uint64_t i = 0; i < key_range; i++) {
+    //     if (i % key_gap == 0) {
+    //         uint64_t r = dist(e);
+    //         query_keys.push_back(r);
+    //     }
+    // }
+
+    std::cout << "The first 10 keys in Keys[]: ";
+    for (int j=0; j<10; j++) {
+        std::cout << query_keys[j] << ", "; 
+    }
+
+    std::cout << "\n";
 
     struct timespec ts_start;
     struct timespec ts_end;
@@ -231,6 +247,7 @@ void benchPointQuery(leveldb::DB* db, leveldb::Options* options,
     printf("point query\n");
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
+    uint64_t cnt = 0;
     for (uint64_t i = 0; i < query_count; i++) {
 	    uint64_t key = query_keys[i];
         key = htobe64(key);
@@ -241,6 +258,11 @@ void benchPointQuery(leveldb::DB* db, leveldb::Options* options,
 
         leveldb::Status status = db->Get(leveldb::ReadOptions(), s_key, &s_value);
 
+        if(!status.IsNotFound())
+            cnt++;
+            //printf("%" PRIu64":%" PRIu64 "\n", be64toh(key), s_value);
+            //std::cout << be64toh(key) << ":" << s_value << "\n";
+            
         if (status.ok()) {
             assert(s_value.size() >= sizeof(uint64_t));
             value = *reinterpret_cast<const uint64_t*>(s_value.data());
@@ -254,6 +276,7 @@ void benchPointQuery(leveldb::DB* db, leveldb::Options* options,
 	static_cast<uint64_t>(ts_start.tv_sec) * 1000000000UL +
 	static_cast<uint64_t>(ts_start.tv_nsec);
 
+    std::cout <<  "No of keys found:" << cnt << "/" << query_count << "\n";
     std::cout << "elapsed:    " << (static_cast<double>(elapsed) / 1000000000.) << "\n";
     std::cout << "throughput: " << (static_cast<double>(query_count) / (static_cast<double>(elapsed) / 1000000000.)) << "\n";
 
@@ -261,17 +284,34 @@ void benchPointQuery(leveldb::DB* db, leveldb::Options* options,
 
 void benchOpenRangeQuery(leveldb::DB* db, leveldb::Options* options, uint64_t key_range,
 			 uint64_t query_count, uint64_t scan_length) {
-    //std::random_device rd;
-    //std::mt19937_64 e(rd());
-    std::mt19937_64 e(2019);
-    std::uniform_int_distribution<unsigned long long> dist(0, key_range);
+    //std::mt19937_64 e(2019);
+    //std::uniform_int_distribution<unsigned long long> dist(0, key_range);
 
+    std::ifstream keyFile("/home/bx1/trash/test/pebblesdb/src/filter_experiment/poisson_timestamps.csv");
     std::vector<uint64_t> query_keys;
+    uint64_t key = 0;
 
-    for (uint64_t i = 0; i < query_count; i++) {
-        uint64_t r = dist(e);
-        query_keys.push_back(r);
+    uint64_t key_gap = 100;
+
+    for (uint64_t i = 0; i < key_range; i++) {
+        keyFile >> key;
+        if (i % key_gap == 0)
+            query_keys.push_back(key);
     }
+    
+    // for (uint64_t i = 0; i < key_range; i++) {
+    //     if (i % key_gap == 0) {
+    //         uint64_t r = dist(e);
+    //         query_keys.push_back(r);
+    //     }
+    // }
+
+    std::cout << "The first 10 keys in Keys[]: ";
+    for (int j=0; j<10; j++) {
+        std::cout << query_keys[j] << ", "; 
+    }
+
+    std::cout << "\n";
 
     struct timespec ts_start;
     struct timespec ts_end;
@@ -282,56 +322,78 @@ void benchOpenRangeQuery(leveldb::DB* db, leveldb::Options* options, uint64_t ke
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
+    uint64_t count = 0;
     for (uint64_t i = 0; i < query_count; i++) {
         uint64_t key = query_keys[i];
         key = htobe64(key);
         leveldb::Slice s_key(reinterpret_cast<const char*>(&key), sizeof(key));
-        
-        std::string s_value;
         uint64_t value;
 
+        
         uint64_t j = 0;
         for (it->Seek(s_key); it->Valid() && j < scan_length; it->Next(), j++) {
             uint64_t found_key = *reinterpret_cast<const uint64_t*>(it->key().data());
             assert(it->value().size() >= sizeof(uint64_t));
             value = *reinterpret_cast<const uint64_t*>(it->value().data());
+            if (value > 0)
+                count++;
             (void)value;
             break;
         }
     }
-    
+  
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
     elapsed = static_cast<uint64_t>(ts_end.tv_sec) * 1000000000UL +
 	static_cast<uint64_t>(ts_end.tv_nsec) -
 	static_cast<uint64_t>(ts_start.tv_sec) * 1000000000UL +
 	static_cast<uint64_t>(ts_start.tv_nsec);
 
+    std::cout << "Keys found:" << count << "/" << scan_length*query_count << "\n";
     std::cout << "elapsed:    " << (static_cast<double>(elapsed) / 1000000000.) << "\n";
     std::cout << "throughput: " << (static_cast<double>(query_count) / (static_cast<double>(elapsed) / 1000000000.)) << "\n";
-
 
     delete it;
 }
 
 void benchClosedRangeQuery(leveldb::DB* db, leveldb::Options* options, uint64_t key_range,
 			   uint64_t query_count, uint64_t range_size) {
-    //std::random_device rd;
-    //std::mt19937_64 e(rd());
-    std::mt19937_64 e(2019);
-    std::uniform_int_distribution<unsigned long long> dist(0, key_range);
+    //std::mt19937_64 e(2019);
+    //std::uniform_int_distribution<unsigned long long> dist(0, key_range);
 
+    
+    std::ifstream keyFile("/home/bx1/trash/test/pebblesdb/src/filter_experiment/poisson_timestamps.csv");
     std::vector<uint64_t> query_keys;
+    uint64_t key = 0;
 
-    for (uint64_t i = 0; i < query_count; i++) {
-        uint64_t r = dist(e);
-        query_keys.push_back(r);
+    uint64_t key_gap = 100;
+
+    for (uint64_t i = 0; i < key_range; i++) {
+        keyFile >> key;
+        if (i % key_gap == 0)
+            query_keys.push_back(key);
     }
+    
+    // for (uint64_t i = 0; i < key_range; i++) {
+    //     if (i % key_gap == 0) {
+    //         uint64_t r = dist(e);
+    //         query_keys.push_back(r);
+    //     }
+    // }
+
+    std::cout << "The first 10 keys in Keys[]: ";
+    for (int j=0; j<10; j++) {
+        std::cout << query_keys[j] << ", "; 
+    }
+
+    std::cout << "\n";
 
     struct timespec ts_start;
     struct timespec ts_end;
     uint64_t elapsed;
 
     printf("closed range query\n");
+    
+    uint64_t count = 0;
 
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
@@ -347,15 +409,18 @@ void benchClosedRangeQuery(leveldb::DB* db, leveldb::Options* options, uint64_t 
         uint64_t value;
 
         leveldb::ReadOptions read_options = leveldb::ReadOptions();
-        
-        //read_options.iterate_upper_bound = &s_upper_key;  NEED TO UPDATE THE UPPER BOUND HERE!!!!!
         leveldb::Iterator* it = db->NewIterator(read_options);
 
         uint64_t j = 0;
+
         for (it->Seek(s_key); it->Valid() && it->key().ToString() < s_upper_key.ToString(); it->Next(), j++) {
             uint64_t found_key = *reinterpret_cast<const uint64_t*>(it->key().data());
             assert(it->value().size() >= sizeof(uint64_t));
             value = *reinterpret_cast<const uint64_t*>(it->value().data());
+            if (be64toh(found_key) > be64toh(upper_key))
+                break;
+            if (value > 0) 
+                count += 1;
             (void)value;
             break;
         }
@@ -369,14 +434,15 @@ void benchClosedRangeQuery(leveldb::DB* db, leveldb::Options* options, uint64_t 
 	static_cast<uint64_t>(ts_start.tv_sec) * 1000000000UL +
 	static_cast<uint64_t>(ts_start.tv_nsec);
 
-    //std::cout << "elapsed:    " << (static_cast<double>(elapsed) / 1000000000.) << "\n";
+    std::cout << "Keys found:" << count << "/" << range_size*query_count << "\n";
+    std::cout << "elapsed:    " << (static_cast<double>(elapsed) / 1000000000.) << "\n";
     std::cout << "throughput: " << (static_cast<double>(query_count) / (static_cast<double>(elapsed) / 1000000000.)) << "\n";
 
 }
 
 
 void printIO() {
-    FILE* fp = fopen("/sys/block/sda/sda1/stat", "r");
+    FILE* fp = fopen("/sys/block/sda/sda2/stat", "r");
     if (fp == NULL) {
 	    printf("Error: empty fp\n");
         printf("%s\n", strerror(errno));
@@ -390,14 +456,14 @@ void printIO() {
 }
 
 uint64_t getReadIOCount() {
-    std::ifstream io_file(std::string("/sys/block/sda/sda1/stat"));
+    std::ifstream io_file(std::string("/sys/block/sda/sda2/stat"));
     uint64_t io_count = 0;
     io_file >> io_count;
     return io_count;
 }
 
 uint64_t getWriteIOCount() { 
-    std::ifstream io_file(std::string("/sys/block/sda/sda1/stat"));
+    std::ifstream io_file(std::string("/sys/block/sda/sda2/stat"));
     uint64_t io_count = 0;
     for(int i = 0; i < 5; i++) 
     	io_file >> io_count;
@@ -446,16 +512,18 @@ int main(int argc, const char* argv[]) {
     int filter_type = atoi(argv[2]);
     int query_type = atoi(argv[3]);
 
-    uint64_t scan_length = 1;
-    uint64_t range_size = 5000000;
+    uint64_t scan_length = 10;
+    uint64_t range_size = 50000;
 
     const std::string kKeyPath = "/home/bx1/trash/test/pebblesdb/src/filter_experiment/poisson_timestamps.csv";
     const uint64_t kValueSize = 1000;
-    const uint64_t kKeyRange = 10000000000000;
+    //const uint64_t kKeyRange = 10000000000000;
+    const uint64_t kKeyRange = 1000000000;
     const uint64_t kQueryCount = 50000;
     
     // 2GB config
-    const uint64_t kKeyCount = 2000000;
+    //const uint64_t kKeyCount = 2000000;
+    const uint64_t kKeyCount = 1000000;
     const uint64_t kWarmupSampleGap = 100;
 
         // 100GB config
@@ -474,7 +542,7 @@ int main(int argc, const char* argv[]) {
     //=========================================================================
     
     //testScan(db, kKeyCount);
-
+    //std::cout << "Using " << options.filter_policy->Name() << "\n";
 
     uint64_t mem_free_before = getMemFree();
     uint64_t mem_available_before = getMemAvailable();
@@ -482,7 +550,6 @@ int main(int argc, const char* argv[]) {
     //printIO();
     
     warmup(kKeyPath, db, kKeyCount, kWarmupSampleGap);
-    
     
     uint64_t mem_free_after = getMemFree();
     uint64_t mem_available_after = getMemAvailable();
@@ -495,7 +562,7 @@ int main(int argc, const char* argv[]) {
     mem_free_before = getMemFree();
     mem_available_before = getMemAvailable();
 
-     if (query_type == 1)
+    if (query_type == 1) 
 	    benchPointQuery(db, &options, kKeyRange, kQueryCount);
     else if (query_type == 2)
 	    benchOpenRangeQuery(db, &options, kKeyRange, kQueryCount, scan_length);
@@ -513,7 +580,6 @@ int main(int argc, const char* argv[]) {
     std::cout << "Write I/O count: " << (write_io_after - write_io_before) << "\n";
     std::cout << "Mem Free diff: " << (mem_free_before - mem_free_after) << "\n";
     std::cout << "Mem Aavilable diff: " << (mem_available_before - mem_available_after) << "\n";
-    
 
     close(db, &options);
 
